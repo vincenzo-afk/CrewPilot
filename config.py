@@ -27,6 +27,9 @@ class Settings:
     openai_model: str = "gpt-4o-mini"
     anthropic_api_key: str | None = field(default=None, repr=False)
     anthropic_model: str = "claude-sonnet-4-5"
+    groq_api_key: str | None = field(default=None, repr=False)
+    groq_model: str = "openai/gpt-oss-120b"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
     github_token: str | None = field(default=None, repr=False)
     log_level: str = "INFO"
 
@@ -35,8 +38,10 @@ class Settings:
         saved = load_saved_credentials()
 
         provider = os.getenv("LLM_PROVIDER", "openai").strip().lower()
-        if provider not in {"openai", "anthropic"}:
-            raise ConfigError("LLM_PROVIDER must be 'openai' or 'anthropic'.")
+        if provider not in {"openai", "anthropic", "groq"}:
+            raise ConfigError(
+                "LLM_PROVIDER must be 'openai', 'anthropic', or 'groq'."
+            )
 
         settings = cls(
             switch_api_url=(
@@ -56,6 +61,12 @@ class Settings:
             openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY") or None,
             anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5"),
+            groq_api_key=os.getenv("GROQ_API_KEY") or None,
+            groq_model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
+            groq_base_url=(
+                os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1").strip()
+                or "https://api.groq.com/openai/v1"
+            ).rstrip("/"),
             github_token=os.getenv("GITHUB_TOKEN") or None,
             log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO",
         )
@@ -79,3 +90,5 @@ class Settings:
             raise ConfigError("OPENAI_API_KEY is required when LLM_PROVIDER=openai.")
         if self.llm_provider == "anthropic" and not self.anthropic_api_key:
             raise ConfigError("ANTHROPIC_API_KEY is required when LLM_PROVIDER=anthropic.")
+        if self.llm_provider == "groq" and not self.groq_api_key:
+            raise ConfigError("GROQ_API_KEY is required when LLM_PROVIDER=groq.")

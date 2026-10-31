@@ -13,7 +13,7 @@ A developer mentions the agent in Discord with a GitHub issue URL or a pasted is
    @crewpilot triage https://github.com/psf/requests/issues/1
    ```
 2. Switch's Discord bridge turns the channel into a Switch room and delivers the addressed message to the agent.
-3. The agent fetches the GitHub issue, asks OpenAI or Anthropic for a structured triage, and validates the JSON.
+3. The agent fetches the GitHub issue, asks OpenAI, Anthropic, or Groq for a structured triage, and validates the JSON.
 4. The agent posts a triage card back through Switch. Switch mirrors it into Discord under the agent's name.
 5. The requester replies:
    ```text
@@ -42,7 +42,7 @@ Switch server / room
    v
 CrewPilot Python agent
    |-- GitHub REST API      (issue URL resolution)
-   |-- OpenAI / Anthropic   (structured triage JSON)
+   |-- OpenAI / Anthropic / Groq   (structured triage JSON)
    v
 Triage card + human approval, back through Switch to Discord
 ```
@@ -62,7 +62,7 @@ CrewPilot/
 ├── github_issues.py           # Resolves GitHub issue URLs via REST
 ├── agent/
 │   ├── prompts.py             # Triage system prompt and JSON contract
-│   └── triage_agent.py        # OpenAI/Anthropic client + validation
+│   └── triage_agent.py        # OpenAI/Anthropic/Groq client + validation
 ├── switch/
 │   ├── agent_client.py        # Real SSE + HTTP agent protocol client
 │   ├── switch_connector.py    # Room triage workflow and approval handling
@@ -82,7 +82,7 @@ You need:
 - The **Switch agent bridge / API URL**. On a local Compose deployment this is typically `http://localhost:8000`. This is not the Gateway UI URL.
 - A **registration token** for a Switch user. The registered agent is owned by that user.
 - **Discord connected to Switch**, usually by a Switch administrator in Switch Console.
-- An **OpenAI or Anthropic API key**.
+- An **OpenAI, Anthropic, or Groq API key**.
 - Optionally a **GitHub token** for private issues and higher API limits.
 
 If a hackathon organizer runs Switch for you, ask them for the API URL and a registration token. If you self-host, the token is `AGENT_REGISTRATION_TOKEN` in your deployment's `.env`.
@@ -161,6 +161,19 @@ LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=sk-ant-...
 ANTHROPIC_MODEL=claude-sonnet-4-5
 ```
+
+For Groq instead (its OpenAI-compatible API is used through the OpenAI SDK):
+
+```dotenv
+LLM_PROVIDER=groq
+GROQ_API_KEY=gsk_...
+GROQ_MODEL=openai/gpt-oss-120b
+# GROQ_BASE_URL=https://api.groq.com/openai/v1
+```
+
+Groq's default model here uses JSON object mode. If you switch to another Groq
+model, choose one that supports JSON mode, or update the model name if Groq
+retires the default.
 
 ### 3. Register the agent once
 
@@ -270,11 +283,14 @@ This is the native Switch model: one bridge for Discord, and every agent partici
 | `SWITCH_AGENT_ID` | Yes, unless saved | Agent id returned by registration; env overrides `.switch/agent.json` |
 | `SWITCH_API_KEY` | Yes, unless saved | Agent API key returned once by registration |
 | `SWITCH_AGENT_NAME` | No | Registered agent name; defaults to the saved value or `crewpilot` |
-| `LLM_PROVIDER` | No | `openai` (default) or `anthropic` |
+| `LLM_PROVIDER` | No | `openai` (default), `anthropic`, or `groq` |
 | `OPENAI_API_KEY` | When provider is OpenAI | OpenAI API key |
 | `OPENAI_MODEL` | No | Defaults to `gpt-4o-mini` |
 | `ANTHROPIC_API_KEY` | When provider is Anthropic | Anthropic API key |
 | `ANTHROPIC_MODEL` | No | Defaults to `claude-sonnet-4-5` |
+| `GROQ_API_KEY` | When provider is Groq | Groq API key |
+| `GROQ_MODEL` | No | Defaults to `openai/gpt-oss-120b` |
+| `GROQ_BASE_URL` | No | Defaults to `https://api.groq.com/openai/v1` |
 | `GITHUB_TOKEN` | No | Enables private issues and higher GitHub rate limits |
 | `LOG_LEVEL` | No | Python log level, default `INFO` |
 

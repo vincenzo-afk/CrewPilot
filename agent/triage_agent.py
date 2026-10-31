@@ -71,15 +71,30 @@ class TriageResult:
 class TriageAgent:
     """Turns free-form issue text into a structured triage result via an LLM."""
 
-    def __init__(self, provider: str, api_key: str, model: str) -> None:
+    def __init__(
+        self,
+        provider: str,
+        api_key: str,
+        model: str,
+        *,
+        base_url: str | None = None,
+    ) -> None:
         self._provider = provider
         self._api_key = api_key
         self._model = model
+        self._base_url = base_url
 
     @classmethod
     def from_settings(cls, settings: "Settings") -> "TriageAgent":
         if settings.llm_provider == "anthropic":
             return cls("anthropic", settings.anthropic_api_key or "", settings.anthropic_model)
+        if settings.llm_provider == "groq":
+            return cls(
+                "groq",
+                settings.groq_api_key or "",
+                settings.groq_model,
+                base_url=settings.groq_base_url,
+            )
         return cls("openai", settings.openai_api_key or "", settings.openai_model)
 
     def triage(self, issue_text: str) -> TriageResult:
@@ -102,9 +117,25 @@ class TriageAgent:
             return self._complete_openai(user_prompt)
         if self._provider == "anthropic":
             return self._complete_anthropic(user_prompt)
+        if self._provider == "groq":
+            return self._complete_groq(user_prompt)
         raise TriageError(f"Unsupported LLM provider: {self._provider}")
 
     def _complete_openai(self, user_prompt: str) -> str:
+        return self._complete_openai_compatible(user_prompt)
+
+    def _complete_groq(self, user_prompt: str) -> str:
+        # Groq exposes an OpenAI-compatible chat-completions API.
+        return self._complete_openai_compatible(
+            user_prompt, base_url=self._base_url
+        )
+
+    def _complete_openai_compatible(
+        self,
+        user_prompt: str,
+        *,
+        base_url: str | None = None,
+    ) -> str:
         try:
             from openai import OpenAI
         except ImportError as exc:
@@ -112,7 +143,13 @@ class TriageAgent:
                 "The 'openai' package is not installed. Run: pip install -r requirements.txt"
             ) from exc
 
-        client = OpenAI(api_key=self._api_key, timeout=45.0)
+        client_options: dict[str, object] = {
+            "api_key": self._api_key,
+            "timeout": 45.0,
+        }
+        if base_url:
+            client_options["base_url"] = base_url
+        client = OpenAI(**client_options)
         response = client.chat.completions.create(
             model=self._model,
             temperature=0.2,
@@ -125,7 +162,7 @@ class TriageAgent:
         )
         content = response.choices[0].message.content
         if not content:
-            raise TriageError("OpenAI returned an empty response.")
+            raise TriageError(f"{self._provider.title()} returned an empty response.")
         return content
 
     def _complete_anthropic(self, user_prompt: str) -> str:
