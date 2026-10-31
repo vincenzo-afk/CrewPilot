@@ -12,6 +12,7 @@ recorded in the room; this MVP does not write labels back to GitHub.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import re
 from collections import OrderedDict
@@ -40,7 +41,7 @@ CHANGES_RE = re.compile(
     r"\b[:,;\s-]*(.*)$",
     re.IGNORECASE | re.DOTALL,
 )
-HELP_RE = re.compile(r"^(?:help|usage|commands)[.!]?$", re.IGNORECASE)
+HELP_RE = re.compile(r"^/?(?:help|usage|commands)[.!]?$", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +50,7 @@ class PendingTriage:
     requester_name: str
     source: str
     summary: str
+    request_key: str
 
 
 class SwitchTriageConnector:
@@ -142,12 +144,24 @@ class SwitchTriageConnector:
             await self._send(room_id, self._help_text(), thread_id)
             return
 
+        request_key = self._request_key(issue_text)
+        duplicate = self._find_pending_for_request(room_id, request_key)
+        if duplicate is not None:
+            await self._send(
+                room_id,
+                f"This issue is already awaiting a decision ({duplicate.source}). "
+                "Approve the existing plan or request changes first.",
+                thread_id,
+            )
+            return
+
         await self._triage(
             room_id=room_id,
             thread_id=thread_id,
             sender_id=sender_id,
             sender_name=sender_name,
             issue_text=issue_text,
+            request_key=request_key,
         )
 
     async def _triage(
@@ -158,8 +172,14 @@ class SwitchTriageConnector:
         sender_id: str,
         sender_name: str,
         issue_text: str,
+        request_key: str,
     ) -> None:
         logger.info("Triaging issue from %s in room %s", sender_name, room_id)
+        await self._send(
+            room_id,
+            "Triaging... I'll post the plan in a few seconds.",
+            thread_id,
+        )
 
         try:
             issue = await load_issue(issue_text, self._github_token)
@@ -198,6 +218,7 @@ class SwitchTriageConnector:
             requester_name=sender_name,
             source=issue.source,
             summary=result.summary,
+            request_key=request_key,
         )
         logger.info(
             "Posted triage for %s (category=%s severity=%s difficulty=%s)",
@@ -261,6 +282,24 @@ class SwitchTriageConnector:
                 return key, self._pending[key]
         return None, None
 
+    def _find_pending_for_request(
+        self, room_id: str, request_key: str
+    ) -> PendingTriage | None:
+        for pending_key, pending in reversed(self._pending.items()):
+            if pending_key[0] == room_id and pending.request_key == request_key:
+                return pending
+        return None
+
+    @staticmethod
+    def _request_key(issue_text: str) -> str:
+        match = GITHUB_ISSUE_RE.search(issue_text)
+        if match:
+            owner, repo, number = match.groups()
+            return f"github:{owner.lower()}/{repo.lower()}#{number}"
+        normalized = re.sub(r"\s+", " ", issue_text).strip().lower()
+        digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:24]
+        return f"text:{digest}"
+
     @staticmethod
     def _normalize(body: str) -> str:
         without_mentions = re.sub(r"@\S+", " ", body)
@@ -317,11 +356,11 @@ class SwitchTriageConnector:
     def _help_text(self) -> str:
         return (
             "**CrewPilot Auto-Triager**\n"
-            "Mention me with a GitHub issue URL or a pasted issue description:\n"
-            "`triage https://github.com/owner/repo/issues/42`\n"
-            "`triage The CSV export returns an empty file above 500 rows...`\n\n"
-            "After I post a plan, mention me and reply `approve` or "
-            "`changes <feedback>`."
+            "Mention me with:\n"
+            "`triage <GitHub issue URL or description>`\n"
+            "`approve` to accept the latest plan\n"
+            "`changes <feedback>` to request revisions\n"
+            "`help` to show this message"
         )
 
     async def _send(self, room_id: str, body: str, thread_id: str | None) -> bool:
