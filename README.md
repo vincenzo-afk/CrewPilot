@@ -248,7 +248,36 @@ Ask for usage help with:
 
 The agent requires the word `triage` (or a GitHub issue URL) so ordinary room conversation does not invoke the LLM.
 
-## How the Switch integration works
+## How Switch is used
+
+Switch is the middleware and the chat transport. This Python process is a
+native **Switch agent**, not a Discord bot. Switch owns the Discord bot and the
+bridge from each Discord channel to a Switch room; CrewPilot never connects to
+Discord directly.
+
+The end-to-end path:
+
+1. A person addresses `@crewpilot` in a Discord channel.
+2. Switch's Discord bridge normalizes the message into a Switch room event.
+3. Switch streams that event to the agent over SSE.
+4. The agent resolves the issue, calls its LLM provider, and validates the JSON.
+5. The agent claims the room and posts the result with an HTTP operation.
+6. Switch mirrors the agent's message back into Discord.
+7. Approval or change requests travel the same path in reverse.
+
+What Switch owns:
+
+- agent registration and API credentials;
+- room membership, addressing policy and delivery filtering;
+- one ordered SSE stream per agent, the heartbeat, and cursor-based replay;
+- the Discord bot, webhooks, and Discord-side delivery.
+
+What CrewPilot owns:
+
+- GitHub issue resolution;
+- the LLM prompt and structured JSON validation;
+- the content of the triage card;
+- in-memory pending-triage and approval state.
 
 Switch's published agent protocol is implemented in `switch/agent_client.py`:
 
@@ -298,9 +327,14 @@ Credentials are resolved from `.env` first, then from `.switch/agent.json` creat
 
 ## Approval behavior
 
+- A new triage gets an immediate `Triaging...` acknowledgement, then the plan.
+- A repeated triage request for the same issue is rejected while a plan is
+  awaiting a decision, so it cannot silently overwrite the pending triage.
 - Only the Switch participant who requested the triage can approve or request changes.
 - Approval state is kept in memory and recorded as a room message. Restarting the agent clears pending approvals.
 - This MVP does **not** write labels, comments, or fixes to GitHub. The next step would be adding GitHub as a Switch service connection and posting the approval back to the issue.
+- `@crewpilot help` lists the triage, approve, and changes actions. Native slash
+  commands are owned by Switch, not by this agent.
 
 ## Troubleshooting
 
@@ -321,9 +355,17 @@ Credentials are resolved from `.env` first, then from `.switch/agent.json` creat
 
 ## Verification status
 
-The native client and workflow were exercised against a local fake Switch server implementing the same SSE/HTTP contract: stream connect, heartbeat, incoming addressed message, triage post, and approval post. Registration payloads and the workflow's approval rules were also verified offline.
+The native client and workflow were exercised against a local fake Switch
+server implementing the same SSE/HTTP contract: stream connect, heartbeat,
+reconnect with `Last-Event-ID`, incoming addressed message, triage post, and
+approval post. Registration payloads, duplicate prevention, acknowledgement,
+approval rules, and the Groq path were also verified offline.
 
-A full end-to-end run still requires your deployed Switch server, a valid registration token, and a Discord bridge. Those credentials and infrastructure are not included in this repository.
+The complete **Discord → Switch → CrewPilot → Groq → Switch → Discord** flow
+was verified live on a local Switch deployment, including requester-only
+approval. To run it on another deployment you still need its Switch API URL,
+a registration token, a connected Discord bridge, and either an OpenAI,
+Anthropic, or Groq key.
 
 ## Two-minute demo outline
 
