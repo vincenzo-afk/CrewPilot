@@ -9,15 +9,16 @@
 - Existing agents/libraries are allowed, but the Switch setup and new agent workflow must be built during the hackathon. Keep truthful pre-event history and do not label old work as hackathon work.
 
 ## Repository state known at 2026-11-01
-- A remote branch `prep/hackathon-readiness` already exists and is one commit ahead of `main`, containing `docs/pre-hackathon-audit.md` and `docs/implementation-backlog.md`. Inspect it; never recreate or overwrite it.
+- A remote branch `prep/hackathon-readiness` already exists and is two commits ahead of `main`, containing `docs/pre-hackathon-audit.md`, `docs/implementation-backlog.md`, `docs/security-architecture-design.md`, `docs/baseline-test-report.md`, and 44 baseline tests passing in CI. Inspect it; never recreate or overwrite it.
 - Existing baseline is one Python custom Switch Auto-Triager: GitHub issue retrieval, OpenAI/Anthropic/Groq structured triage, Switch room replies, requester approval/change handling.
-- Known gaps: in-memory pending approvals and deduplication; unsafe fallback from a mismatched thread to the most recent pending task in the room; no tests or CI committed; only one agent; no Builder/Reviewer; no GitHub write/Draft PR path.
+- Known gaps: in-memory pending approvals and deduplication; unsafe fallback from a mismatched thread to the most recent pending task in the room; only one agent implemented; no Builder/Reviewer; no GitHub write/Draft PR path.
 - The audit recorded Python 3.12.7. Reproduce in a clean `.venv`; do not rely on global Python packages.
 
 ## Switch protocol rule
-- The official hackathon overview and the Switch source protocol checked on 2026-11-01 describe SSE events down and authenticated HTTP operations up. The existing client uses this transport.
-- Do not replace SSE with WebSockets based on an old conversation note. At the start of any protocol work, inspect the latest official docs and the exact Switch deployment version. Change transport only when that evidence requires it.
-- Preserve stable connection IDs, cursor/Last-Event-ID resume, heartbeat handling, connection-state processing and explicit gap/eviction handling. Re-read room context/history after a gap before acting.
+- The current official protocol (`https://github.com/sandbox-quantum/switch/blob/main/docs/official/internals/agent-protocol.md`) specifies SSE event stream down (`GET /agents/{id}/events`) and authenticated HTTP operations up (`POST /agents/{id}/ops/{op}`). The existing client uses this transport.
+- The official protocol does not specify a primary WebSocket agent transport. Do not migrate `switch/agent_client.py` to WebSockets, do not add a WebSocket fallback, and do not claim SSE is deprecated. The existing SSE/HTTP implementation is aligned with the documented transport.
+- Preserve stable connection IDs, cursor/Last-Event-ID resume, heartbeat handling (every 2 seconds), connection-state processing and explicit gap/eviction handling. Re-read room context/history after a gap before acting.
+- Room subscription semantics: `scope=all` covers every room the agent belongs to without claiming each one; `scope=single` covers one room at a time. `connect_to_room` always takes over a room claim and returns room context. `read_context` is available for explicit context/history retrieval.
 - The protocol source says task lifecycle event frames exist but are not ready for client workflows; do not build on them unless current official docs explicitly mark them ready. Use documented room messages/mentions for handoffs.
 - Never invent Switch routes, operation names, request fields or addressing settings. Verify exact names and semantics.
 

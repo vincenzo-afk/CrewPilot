@@ -20,11 +20,12 @@ Sources: https://www.wemakedevs.org/hackathons/switch ; https://www.wemakedevs.o
 ## Repository inspection as of 2026-11-01
 
 - The public repository default branch is `main`.
-- `prep/hackathon-readiness` already exists remotely and is one commit ahead of `main`; its one commit adds `docs/pre-hackathon-audit.md` and `docs/implementation-backlog.md`. Do not recreate it.
+- `prep/hackathon-readiness` already exists remotely and is two commits ahead of `main`; it contains `docs/pre-hackathon-audit.md`, `docs/implementation-backlog.md`, `docs/security-architecture-design.md`, `docs/baseline-test-report.md`, and 44 passing baseline tests verified in CI. Do not recreate it.
 - Existing application is a native Switch custom always-on Auto-Triager: GitHub issue retrieval, OpenAI/Anthropic/Groq structured triage, triage card posting, requester approval and change request.
 - The existing README documents a live Discord → Switch → CrewPilot → Groq → Switch → Discord test, including requester-only approval. Treat this as the repository's own recorded evidence and re-run it against the hackathon demo environment.
-- Audit findings: Python 3.12.7; compileall, Ruff and `git diff --check` passed; pytest failed due a globally installed plugin, and disabling plugin autoload resulted in no tests. No committed test suite/CI. Approvals and message deduplication are in memory. A mismatched thread can fall back to the room's latest pending triage. Only one agent exists; no Builder, Reviewer, durable audit trail or Draft PR writer exists.
-- Keep current Switch protocol transport unless official docs/server version require change. Official event overview and Switch protocol source checked 2026-11-01 specify SSE events down and authenticated HTTP operations up. The old conversation note demanding WebSockets is not a reliable basis for migration.
+- Audit findings: Python 3.12.7; compileall, Ruff and `git diff --check` passed; 44 unit and regression tests pass in a clean `.venv`; CI workflow committed and green.
+- Confirmed gaps: Approvals and message deduplication are currently in memory; a mismatched thread can fall back to the room's latest pending triage (P0 vulnerability documented in tests); only one agent exists; no Builder, Reviewer, durable audit trail or Draft PR writer exists yet.
+- Switch protocol alignment: Authoritative Switch agent protocol documentation (`sandbox-quantum/switch docs/official/internals/agent-protocol.md`) specifies SSE events down (`GET /agents/{id}/events`) and authenticated HTTP operations up (`POST /agents/{id}/ops/{op}`). The existing codebase uses this documented SSE/HTTP transport. No WebSocket migration is required or planned. Compatibility testing, connection lifecycle handling, and room context recovery on gap events are detailed in `docs/switch-protocol-compatibility-plan.md`.
 
 Audit: https://github.com/vincenzo-afk/CrewPilot/blob/prep/hackathon-readiness/docs/pre-hackathon-audit.md
 Backlog: https://github.com/vincenzo-afk/CrewPilot/blob/prep/hackathon-readiness/docs/implementation-backlog.md

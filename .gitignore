@@ -19,6 +19,11 @@ env/
 .ruff_cache/
 .mypy_cache/
 
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
 # Editors and OS files
 .idea/
 .vscode/

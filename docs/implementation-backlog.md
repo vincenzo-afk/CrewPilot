@@ -31,14 +31,15 @@ requester authorization.
 - Tests cover SSE reconnect, cursor forwarding, heartbeat errors, \`gap\`, and
   \`evicted\` handling with a fake Switch server.
 
-### PREP-03 — Switch deployment compatibility fixture
+### PREP-03 — Switch deployment compatibility fixture & protocol alignment plan
 
-**Outcome:** a documented Switch version and a local test fixture/demo setup.
+**Outcome:** a documented Switch version, local test fixture setup, and verified protocol compatibility plan.
 
 **Acceptance criteria:**
 
-- The chosen deployment is verified against the official SSE/HTTP protocol.
-- Agent-to-agent addressing is configured and tested with separate identities.
+- The chosen deployment is verified against official documentation (`sandbox-quantum/switch docs/official/internals/agent-protocol.md`: SSE `/agents/{id}/events` down, authenticated HTTP `/agents/{id}/ops/{op}` up).
+- The protocol compatibility plan (`docs/switch-protocol-compatibility-plan.md`) details connection lifecycle, cursor resumption, room subscription semantics (`scope=all` vs `scope=single`), gap recovery via `read_context`, and addressing rules.
+- Agent-to-agent addressing is planned and tested with separate identities using documented room messages/mentions.
 - The exact credentials and bridge setup remain outside Git.
 
 ### PREP-04 — Security and delivery design
